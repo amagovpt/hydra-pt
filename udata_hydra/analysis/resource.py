@@ -1,51 +1,24 @@
 import json
 import logging
 import os
-import tempfile
 
 from datetime import datetime
-from typing import BinaryIO, Union
+from typing import Union
 
-import aiohttp
 import magic
 
 from dateutil.parser import parse as date_parser, ParserError
 
-from udata_hydra import config, context
+from udata_hydra import context
 from udata_hydra.utils import queue
+from udata_hydra.analysis.csv import analyse_csv
+from udata_hydra.utils.csv import detect_csv_from_headers
 from udata_hydra.utils.db import update_check, get_check
-from udata_hydra.utils.file import compute_checksum_from_file
+from udata_hydra.utils.file import compute_checksum_from_file, download_resource
 from udata_hydra.utils.http import send
 
 
 log = logging.getLogger("udata-hydra")
-
-
-async def download_resource(url: str, headers: dict) -> BinaryIO:
-    """
-    Attempts downloading a resource from a given url.
-    Returns the downloaded file object.
-    Raises IOError if the resource is too large.
-    """
-    tmp_file = tempfile.NamedTemporaryFile(delete=False)
-
-    if float(headers.get("content-length", -1)) > float(config.MAX_FILESIZE_ALLOWED):
-        raise IOError("File too large to download")
-
-    chunk_size = 1024
-    i = 0
-    async with aiohttp.ClientSession(headers={"user-agent": config.USER_AGENT}) as session:
-        async with session.get(url, allow_redirects=True) as response:
-            async for chunk in response.content.iter_chunked(chunk_size):
-                if i * chunk_size < float(config.MAX_FILESIZE_ALLOWED):
-                    tmp_file.write(chunk)
-                else:
-                    tmp_file.close()
-                    log.error(f"File {url} is too big, skipping")
-                    raise IOError("File too large to download")
-                i += 1
-    tmp_file.close()
-    return tmp_file
 
 
 async def process_resource(check_id: int, is_first_check: bool) -> None:
@@ -55,6 +28,7 @@ async def process_resource(check_id: int, is_first_check: bool) -> None:
     - size (optionnal)
     - mime_type (optionnal)
     - checksum (optionnal)
+    - launch csv_analysis if looks like a CSV respone
 
     Will call udata if first check or changes found, and update check with optionnal infos
     """
@@ -75,9 +49,13 @@ async def process_resource(check_id: int, is_first_check: bool) -> None:
     # if not, let's see if we can infer a modifification date from headers
     change_analysis = change_analysis or await detect_resource_change_from_headers(url) or {}
 
+    # could it be a CSV? If we get hints, we will download the file
+    is_csv = await detect_csv_from_headers(check)
+
     # if not, let's download the file to get some hints and other infos
     dl_analysis = {}
-    if not change_analysis:
+    # TODO: we do not need re-download CSV if we alrady know it has not changed
+    if not change_analysis or is_csv:
         tmp_file = None
         try:
             tmp_file = await download_resource(url, headers)
@@ -93,10 +71,9 @@ async def process_resource(check_id: int, is_first_check: bool) -> None:
                 await detect_resource_change_from_checksum(resource_id, dl_analysis["analysis:checksum"])
                 or {}
             )
-            # TODO: this never seems to output text/csv, maybe override it later
             dl_analysis["analysis:mime-type"] = magic.from_file(tmp_file.name, mime=True)
         finally:
-            if tmp_file:
+            if tmp_file and not is_csv:
                 os.remove(tmp_file.name)
             await update_check(check_id, {
                 "checksum": dl_analysis.get("analysis:checksum"),
@@ -109,6 +86,8 @@ async def process_resource(check_id: int, is_first_check: bool) -> None:
 
     analysis_results = {**dl_analysis, **change_analysis}
     if has_changed_over_time or (is_first_check and analysis_results):
+        if is_csv and tmp_file:
+            queue.enqueue(analyse_csv, check_id, file_path=tmp_file.name, _priority="default")
         queue.enqueue(
             send,
             dataset_id=dataset_id,
