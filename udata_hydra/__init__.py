@@ -147,5 +147,18 @@ class Configurator:
     def __dict__(self):
         return self.configuration
 
+    @property
+    def USER_AGENT_FULL(self) -> str:
+        """Build the complete user agent string with version"""
+        if self.USER_AGENT and self.APP_VERSION:
+            # Use regex to find pattern: / followed by version-like string
+            pattern = r"/([^/\s]+)(?=\s|$)"
+            result = re.sub(pattern, f"/{self.APP_VERSION}", self.USER_AGENT)
+            # If no replacement was made (no version found), append it
+            if result == self.USER_AGENT:
+                return f"{self.USER_AGENT}/{self.APP_VERSION}"
+            return result
+        return "udata-hydra"
+
 
 config = Configurator()

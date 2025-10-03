@@ -2,6 +2,21 @@
 
 ## Current (in progress)
 
+- Dynamic version in user agent [#328](https://github.com/datagouv/hydra/pull/328) and [#337](https://github.com/datagouv/hydra/pull/337)
+- Add performance tests for csv to geojson and geojson to pmtiles conversion on geographical big data, and CLI commands to convert geographical files locally [#319](https://github.com/datagouv/hydra/pull/319)
+- Allow crawling of non datagouv URLs with CLI [#312](https://github.com/datagouv/hydra/pull/312)
+- Flag deleted resources in CSV DB instead of deleting them [#340](https://github.com/datagouv/hydra/pull/340)
+- Add a CI workflow for performance benchmarks [#339](https://github.com/datagouv/hydra/pull/339)
+- Store `dataset_id` in `tables_index` table of CSV database [#341](https://github.com/datagouv/hydra/pull/341)
+
+## 2.4.1 (2025-09-03)
+
+- Only delete the table if the insertion was not successful [#332](https://github.com/datagouv/hydra/pull/332)
+- Handle cases of empty table in db when getting the previous analysis [#333](https://github.com/datagouv/hydra/pull/333)
+- Better discriminate long column names [#334](https://github.com/datagouv/hydra/pull/334)
+
+## 2.4.0 (2025-09-02)
+
 - Simplify CI configuration [#290](https://github.com/datagouv/hydra/pull/290)
 - Remove unused dependencies [#292](https://github.com/datagouv/hydra/pull/292)
 - Fill in check throughout the process to send previous steps infos in case of late crash [#293](https://github.com/datagouv/hydra/pull/293)
@@ -18,6 +33,13 @@
 - Add `resource_id` info in timer logs and add timer for analysing resource [#313](https://github.com/datagouv/hydra/pull/313)
 - Add check id in udata extras to facilitate debug [#307](https://github.com/datagouv/hydra/pull/307)
 - Split `csv_to geojson_and_pmtiles` function into a new intermediary function `csv_to_geojson` for better unit testing/benchmarking [#317](https://github.com/datagouv/hydra/pull/317)
+- Add download resource CLI command [#320](https://github.com/datagouv/hydra/pull/320)
+- Fix custom exception `ExceptionWithSentryDetails` to include Python stack trace [#315](https://github.com/datagouv/hydra/pull/315)
+- Fix deprecated Sentry method [#323](https://github.com/datagouv/hydra/pull/323)
+- Upgrade csv-detective [#322](https://github.com/datagouv/hydra/pull/322) [#324](https://github.com/datagouv/hydra/pull/324) [#327](https://github.com/datagouv/hydra/pull/327)
+- Stream geojson conversion to prevent RAM consumption [#326](https://github.com/datagouv/hydra/pull/326)
+- Gracefully crash if any of the column names is too long for Postgres [#329](https://github.com/datagouv/hydra/pull/329)
+- Return updated check in `handle_resource_exception` to send the right payload to udata [#330](https://github.com/datagouv/hydra/pull/330)
 
 ## 2.3.0 (2025-07-15)
 
