@@ -1,4 +1,4 @@
-ENVIRONMENT = "local"
+ENVIRONMENT = "tst"
 
 LOG_LEVEL = "DEBUG"
 
@@ -7,19 +7,18 @@ DATABASE_URL = "postgres://postgres:postgres@localhost:5432/postgres"
 # csv as database table
 DATABASE_URL_CSV = "postgres://postgres:postgres@localhost:5434/postgres"
 DATABASE_SCHEMA = "public"
-REDIS_URL = "redis://localhost:6379/0"
+REDIS_URL = "redis://10.55.37.41:6379"
 SENTRY_DSN = ""
 SENTRY_SAMPLE_RATE = 1.0
 TESTING = false
 # max postgres pool size
-MAX_POOL_SIZE = 50
+MAX_POOL_SIZE = 30
 USER_AGENT = "udata-hydra/1.0"
 
-API_KEY = "hydra_api_key_to_change"
+API_KEY = "${API_KEY}"
 
 # -- crawler settings -- #
-
-CATALOG_URL = "https://www.data.gouv.fr/fr/datasets/r/4babf5f2-6a9c-45b5-9144-ca5eae6a7a6d"
+CATALOG_URL = "https://dados.gov.pt/pt/datasets/r/203187f0-75a3-4dfd-a3e7-5c3805f28ff9"
 # sql LIKE syntax
 EXCLUDED_PATTERNS = [
     "http%geo.data.gouv.fr%",
@@ -28,7 +27,6 @@ EXCLUDED_PATTERNS = [
 ]
 # no backoff for those domains
 NO_BACKOFF_DOMAINS = [
-    "static.data.gouv.fr",
     "www.data.gouv.fr",
     # dead domain, no need to backoff
     "inspire.data.gouv.fr",
@@ -41,7 +39,7 @@ STUCK_THRESHOLD_SECONDS = 3600
 
 # check batch size, beware of open file limits
 # ⚠️ do not exceed MAX_POOL_SIZE
-BATCH_SIZE = 40
+BATCH_SIZE = 20
 
 # check resource if last check is older than
 CHECK_DELAYS = [12, 24, 168, 720] # in hours (1/2, 1, 7, 30 days)
@@ -69,8 +67,8 @@ RQ_DEFAULT_TIMEOUT = 180
 
 # -- Webhook integration config -- #
 WEBHOOK_ENABLED = true
-UDATA_URI = ""
-UDATA_URI_API_KEY = ""
+UDATA_URI = "${UDATA_URI}"
+UDATA_URI_API_KEY = "${UDATA_URI_API_KEY}"
 
 # -- Minio / datalake settings -- #
 MINIO_URL = "" # no scheme

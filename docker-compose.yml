@@ -9,6 +9,8 @@ services:
       - database-data-15:/var/lib/postgresql/data/ # persist data even if container shuts down
     ports:
       - 5432:5432
+    networks:
+      - hydra_net
   database-csv:
     image: "postgres:15"
     environment:
@@ -19,6 +21,13 @@ services:
       - database-data-csv-15:/var/lib/postgresql/data/ # persist data even if container shuts down
     ports:
       - 5434:5432
+    networks:
+      - hydra_net
+
+networks:
+  hydra_net:
+    name: hydra_net 
+    driver: bridge
 
 volumes:
   database-data-15: # named volumes can be managed more easily using docker-compose

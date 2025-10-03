@@ -1,0 +1,25 @@
+# Criar serviço systemd: /etc/systemd/system/hydra.service
+
+[Unit]
+Description=Serviço API Tabular + Métricas (uData Hydra)
+After=network.target
+
+[Service]
+Type=simple
+User=dev
+WorkingDirectory=/opt/hydra
+ExecStart=/opt/hydra/scripts/start_hydra.sh
+Restart=always
+RestartSec=5
+Environment=POETRY_VIRTUALENVS_CREATE=false
+
+[Install]
+WantedBy=multi-user.target
+
+
+
+## Ativar o serviço
+
+#sudo systemctl daemon-reload
+#sudo systemctl enable hydra
+#sudo systemctl start hydra
