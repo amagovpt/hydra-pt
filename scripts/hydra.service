@@ -7,8 +7,8 @@ After=network.target
 [Service]
 Type=simple
 User=dev
-WorkingDirectory=/opt/hydra
-ExecStart=/opt/hydra/scripts/start_hydra.sh
+WorkingDirectory=/opt/hydra-pt
+ExecStart=/opt/hydra-pt/scripts/start_hydra.sh
 Restart=always
 RestartSec=5
 Environment=POETRY_VIRTUALENVS_CREATE=false
