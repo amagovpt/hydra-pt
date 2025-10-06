@@ -1,7 +1,7 @@
 #!/bin/bash
 
 POETRY_BIN="/home/dev/.local/bin/poetry"
-WORKDIR="/opt/hydra"
+WORKDIR="/opt/hydra-pt"
 LOGDIR="$WORKDIR/logs"
 
 # Limite de linhas para os logs
