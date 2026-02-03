@@ -10,6 +10,7 @@
 URLs are crawled via _aiohttp_, catalog and crawled metadata are stored in a _PostgreSQL_ database.
 
 Since it's called _hydra_, it also has mythical powers embedded:
+
 - analyse remote resource metadata over time to detect changes in the smartest way possible
 - if the remote resource is tabular (csv or excel-like), convert it to a PostgreSQL table, ready for APIfication, and to parquet to offer another distribution of the data
 - if the remote resource is a geojson, convert it to PMTiles to offer another distribution of the data
@@ -21,35 +22,47 @@ The architecture for the full workflow is the following:
 
 ![Full workflow architecture](docs/archi-idd-IDD.drawio.png)
 
-
 The hydra crawler is one of the components of the architecture. It will check if resource is available, analyse the type of file if the resource has been modified, and analyse the CSV content. It will also convert CSV resources to database tables and send the data to a udata instance.
 
 ![Crawler architecture](docs/hydra.drawio.png)
 
 ## 📦 Dependencies
 
-This project uses `libmagic`, which needs to be installed on your system, eg:
+This project uses `libmagic`, which needs to be installed on your system, e.g.:
 
-`brew install libmagic` on MacOS, or `sudo apt-get install libmagic-dev` on linux.
+`brew install libmagic` on MacOS, or `sudo apt-get install libmagic-dev` on Linux.
 
-This project uses Python >=3.11 and [Poetry](https://python-poetry.org) >= 2.0.0 to manage dependencies.
+This project uses Python >=3.11 and [uv](https://docs.astral.sh/uv/) to manage dependencies.
+
+## 🚀 Installation
+
+### With uv (recommended)
+
+```bash
+uv sync
+```
+
+### With pip
+
+```bash
+pip3 install -e .
+```
 
 ## 🖥️ CLI
 
 ### Create database structure
 
-Install udata-hydra dependencies and cli.
-`poetry install`
+Install udata-hydra dependencies and cli (see Installation section above), then migrate the DB with:
 
-`poetry run udata-hydra migrate`
+`uv run udata-hydra migrate`
 
 ### Load (UPSERT) latest catalog version from data.gouv.fr
 
-`poetry run udata-hydra load-catalog`
+`uv run udata-hydra load-catalog`
 
 ## 🕷️ Crawler
 
-`poetry run udata-hydra-crawl`
+`uv run udata-hydra-crawl`
 
 It will crawl (forever) the catalog according to the config set in `config.toml`, with a default config in `udata_hydra/config_default.toml`.
 
@@ -65,15 +78,15 @@ If an URL matches one of the `EXCLUDED_PATTERNS`, it will never be checked.
 
 A job queuing system is used to process long-running tasks. Launch the worker with the following command:
 
-`poetry run rq worker -c udata_hydra.worker`
+`uv run rq worker -c udata_hydra.worker`
 
 To monitor worker status:
 
-`poetry run rq info -c udata_hydra.worker --interval 1`
+`uv run rq info -c udata_hydra.worker --interval 1`
 
 To empty all the queues:
 
-`poetry run rq empty -c udata_hydra.worker low default high`
+`uv run rq empty -c udata_hydra.worker low default high`
 
 ## 📊 CSV conversion to database
 
@@ -81,17 +94,17 @@ Converted CSV tables will be stored in the database specified via `config.DATABA
 
 ## 🧪 Tests
 
-To run the tests, you need to launch the database, the test database, and the Redis broker with `docker compose -f docker-compose.yml -f docker-compose.test.yml -f docker-compose.broker.yml up -d`.
+To run the tests, you need to launch the test database with `docker compose --profile test up -d`.
 
-Make sure the dev dependencies are installed with `poetry install --extras dev`.
+Make sure the dependencies are installed (including dev dependencies) with `uv sync` (see Installation section above).
 
-Then you can run the tests with `poetry run pytest`.
+Then you can run the tests with `uv run pytest`.
 
-To run a specific test file, you can pass the path to the file to pytest, like this: `poetry run pytest tests/test_file.py`.
+To run a specific test file, you can pass the path to the file to pytest, like this: `uv run pytest tests/test_file.py`.
 
-To run a specific test function, you can pass the path to the file and the name of the function to pytest, like this: `poetry run pytest tests/test_api/test_api_checks.py::test_get_latest_check`.
+To run a specific test function, you can pass the path to the file and the name of the function to pytest, like this: `uv run pytest tests/test_api/test_api_checks.py::test_get_latest_check`.
 
-If you would like to see print statements as they are executed, you can pass the -s flag to pytest (`poetry run pytest -s`). However, note that this can sometimes be difficult to parse.
+If you would like to see print statements as they are executed, you can pass the -s flag to pytest (`uv run pytest -s`). However, note that this can sometimes be difficult to parse.
 
 ### 🎯 Tests coverage
 
@@ -115,6 +128,7 @@ Performance benchmarks are automatically executed on CI runners when pushing to 
 #### Benchmark execution
 
 Benchmarks run on:
+
 - **[CircleCI](https://app.circleci.com/pipelines/github/datagouv/hydra)** ([workflow file](https://github.com/datagouv/hydra/blob/main/.circleci/config.yml)) - available as a manually triggerable pipeline after a push to `benchmarks` branch
 - **[GitHub Actions](https://github.com/datagouv/hydra/actions/workflows/benchmark.yml)** ([workflow file](https://github.com/datagouv/hydra/blob/main/.github/workflows/benchmark.yml)) - triggered automatically on pushes to `benchmarks` branch
 
@@ -125,6 +139,7 @@ Using two different CI systems allows for performance comparison across differen
 Each benchmark run collects **execution time** in seconds, **commit information** (hash, author) and **runner specifications** (CPU cores, memory, Python version, runner class), which are stored in [`.benchmarks/benchmarks.csv`](https://github.com/datagouv/hydra/blob/benchmarks/.benchmarks/benchmarks.csv).
 
 More specifically:
+
 - `datetime` - when the test was run
 - `test_name` - which test was executed
 - `input_file` - URL or path of the input test data file used
@@ -149,10 +164,10 @@ To run performance benchmarks locally, you can use the CLI commands:
 
 ```bash
 # Convert CSV to GeoJSON
-poetry run udata-hydra convert-csv-to-geojson /path/to/large/file.csv
+uv run udata-hydra convert-csv-to-geojson /path/to/large/file.csv
 
 # Convert GeoJSON to PMTiles
-poetry run udata-hydra convert-geojson-to-pmtiles /path/to/large/file.geojson
+uv run udata-hydra convert-geojson-to-pmtiles /path/to/large/file.geojson
 ```
 
 These commands allow you to test performance improvements locally before pushing to the benchmarks branch.
@@ -177,9 +192,10 @@ RESOURCES_ANALYSER_API_KEY = "api_key_to_change"
 ### 🚀 Run
 
 ```bash
-poetry install
-poetry run adev runserver udata_hydra/app.py
+# Install dependencies (see Installation section above)
+uv run adev runserver udata_hydra/app.py
 ```
+
 By default, the app will listen on `localhost:8000`.
 You can check the status of the app with `curl http://localhost:8000/api/health`.
 
@@ -187,29 +203,34 @@ You can check the status of the app with `curl http://localhost:8000/api/health`
 
 The API serves the following endpoints:
 
-*Related to checks:*
+_Related to checks:_
+
 - `GET` on `/api/checks/latest?url={url}&resource_id={resource_id}` to get the latest check for a given URL and/or `resource_id`
 - `GET` on `/api/checks/all?url={url}&resource_id={resource_id}` to get all checks for a given URL and/or `resource_id`
 - `GET` on `/api/checks/aggregate?group_by={column}&created_at={date}` to get checks occurrences grouped by a `column` for a specific `date`
 
-*Related to resources:*
+_Related to resources:_
+
 - `GET` on `/api/resources/{resource_id}` to get a resource in the DB "catalog" table from its `resource_id`
 - `POST` on `/api/resources` to receive a resource creation event from a source. It will create a new resource in the DB "catalog" table and mark it as priority for next crawling
 - `PUT` on `/api/resources/{resource_id}` to update a resource in the DB "catalog" table
 - `DELETE` on `/api/resources/{resource_id}` to delete a resource in the DB "catalog" table
 
 > :warning: **Warning: the following routes are deprecated and will be removed in the future:**
+>
 > - `POST` on `/api/resource/created` -> use `POST` on `/api/resources/` instead
 > - `POST` on `/api/resource/updated` -> use `PUT` on `/api/resources/` instead
 > - `POST` on `/api/resource/deleted` -> use `DELETE` on `/api/resources/` instead
 
-*Related to resources exceptions:*
+_Related to resources exceptions:_
+
 - `GET` on `/api/resources-exceptions` to get the list of all resources exceptions
 - `POST` on `/api/resources-exceptions` to create a new resource exception in the DB
 - `PUT` on `/api/resources-exceptions/{resource_id}` to update a resource exception in the DB
 - `DELETE` on `/api/resources-exceptions/{resource_id}` to delete a resource exception from the DB
 
-*Related to some status and health check:*
+_Related to some status and health check:_
+
 - `GET` on `/api/status/crawler` to get the crawling status
 - `GET` on `/api/status/worker` to get the worker status
 - `GET` on `/api/stats` to get the crawling stats
@@ -353,9 +374,10 @@ $ curl   -X POST http://localhost:8000/api/resources-exceptions \
 ```
 
 ...or, if you don't want to add table indexes and a comment:
+
 ```bash
 $ curl  -X POST localhost:8000/api/resources-exceptions \
-        -H 'Authorization: Bearer <myAPIkey>" \
+        -H 'Authorization: Bearer <myAPIkey>' \
         -d '{"resource_id": "f868cca6-8da1-4369-a78d-47463f19a9a3"}'
 ```
 
@@ -471,7 +493,7 @@ $ curl -s "http://localhost:8000/api/stats" | json_pp
 
 ## 🔗 Using Webhook integration
 
-** Set the config values**
+**Set the config values**
 
 Create a `config.toml` where your service and commands are launched, or specify a path to a TOML file via the `HYDRA_SETTINGS` environment variable. `config.toml` or equivalent will override values from `udata_hydra/config_default.toml`, lookup there for values that can/need to be defined.
 
@@ -484,6 +506,7 @@ SENTRY_DSN = "https://{my-sentry-dsn}"
 The webhook integration sends HTTP messages to `udata` when resources are analysed or checked to fill resources extras.
 
 Regarding analysis, there is a phase called "change detection". It will try to guess if a resource has been modified based on different criteria:
+
 - harvest modified date in catalog
 - content-length and last-modified headers
 - checksum comparison over time
@@ -492,24 +515,29 @@ The payload should look something like:
 
 ```json
 {
-   "analysis:content-length": 91661,
-   "analysis:mime-type": "application/zip",
-   "analysis:checksum": "bef1de04601dedaf2d127418759b16915ba083be",
-   "analysis:last-modified-at": "2022-11-27T23:00:54.762000",
-   "analysis:last-modified-detection": "harvest-resource-metadata",
+  "analysis:content-length": 91661,
+  "analysis:mime-type": "application/zip",
+  "analysis:checksum": "bef1de04601dedaf2d127418759b16915ba083be",
+  "analysis:last-modified-at": "2022-11-27T23:00:54.762000",
+  "analysis:last-modified-detection": "harvest-resource-metadata"
 }
 ```
 
 ## 🛠️ Development
 
-### 🐳 docker compose
+### 🐳 Docker compose
 
-Multiple docker-compose files are provided:
-- a minimal `docker-compose.yml` with two PostgreSQL containers (one for catalog and metadata, the other for converted CSV to database)
-- `docker-compose.broker.yml` adds a Redis broker
-- `docker-compose.test.yml` launches a test DB, needed to run tests
+A single `docker-compose.yml` file is provided with profiles to manage different environments:
 
-NB: you can launch compose from multiple files like this: `docker compose -f docker-compose.yml -f docker-compose.test.yml up`
+- Default services: `database` and `database-csv` (PostgreSQL containers for catalog/metadata and CSV conversion)
+- `test` profile: `test-database` (ephemeral test database)
+- `broker` profile: `broker` (Redis broker)
+
+Usage:
+
+- Development: `docker compose up -d` (or `docker compose --profile broker up -d` if Redis is needed)
+- Tests: `docker compose --profile test up -d` (broker not needed, queue functionality is mocked)
+- Broker only: `docker compose --profile broker up -d`
 
 ### 📝 Logging & Debugging
 
@@ -524,27 +552,52 @@ For example, to set the log level to `DEBUG` when initializing the database, use
 ## 🚀 Deployment
 
 3 services need to be deployed for the full stack to run:
+
 - worker
 - api / app
 - crawler
 
 Refer to each section to learn how to launch them. The only differences from dev to prod are:
+
 - use `HYDRA_SETTINGS` env var to point to your custom `config.toml`
 - use `HYDRA_APP_SOCKET_PATH` to configure where aiohttp should listen to a [reverse proxy connection (eg nginx)](https://docs.aiohttp.org/en/stable/deployment.html#nginx-configuration) and use `udata-hydra-app` to launch the app server
 
 ## 🤝 Contributing
 
 Before contributing to the repository and making any PR, it is necessary to initialize the pre-commit hooks:
+
 ```bash
 pre-commit install
 ```
+
 Once this is done, code formatting and linting, as well as import sorting, will be automatically checked before each commit.
 
 If you cannot use pre-commit, it is necessary to format, lint, and sort imports with [Ruff](https://docs.astral.sh/ruff/) before committing:
+
 ```bash
-poetry run ruff check --fix . && poetry run ruff format .
+uv run ruff check --fix . && uv run ruff format .
 ```
 
-### 🏷️ Releases
+### 🏷️ Releases and versioning
 
-The release process uses [bump'X](https://github.com/datagouv/bumpx).
+The release process uses the [`tag_version.sh`](tag_version.sh) script to create git tags, GitHub releases and update [CHANGELOG.md](CHANGELOG.md) automatically. Package version numbers are automatically derived from git tags using [setuptools_scm](https://github.com/pypa/setuptools_scm), so no manual version updates are needed in `pyproject.toml`.
+
+**Prerequisites**: [GitHub CLI](https://cli.github.com/) must be installed and authenticated, and you must be on the main branch with a clean working directory.
+
+```bash
+# Create a new release
+./tag_version.sh <version>
+
+# Example
+./tag_version.sh 2.5.0
+
+# Dry run to see what would happen
+./tag_version.sh 2.5.0 --dry-run
+```
+
+The script automatically:
+
+- Extracts commits since the last tag and formats them for CHANGELOG.md
+- Identifies breaking changes (commits with `!:` in the subject)
+- Creates a git tag and pushes it to the remote repository
+- Creates a GitHub release with the changelog content
