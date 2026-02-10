@@ -5,11 +5,11 @@ from datetime import datetime
 
 # --- CONFIGURAÇÕES ---
 DB_HOST = "localhost"
-DB_PORT = "5432"
-DB_NAME = "nome_da_sua_base"
-DB_USER = "seu_usuario"
+DB_PORT = "5434"  # "5434" ou "5432"
+DB_NAME = "postgres"
+DB_USER = "postgres"
 # DICA: Em produção, use os.getenv("DB_PASSWORD")
-DB_PASS = "sua_senha_aqui"
+DB_PASS = "postgres"
 
 # Pasta onde os backups serão salvos
 BACKUP_DIR = "./backups"
