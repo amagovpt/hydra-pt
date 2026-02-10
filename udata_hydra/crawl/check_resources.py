@@ -172,6 +172,18 @@ async def check_resource(
         AssertionError,
         UnicodeError,
     ) as e:
+        if (
+            isinstance(e, aiohttp.client_exceptions.ServerDisconnectedError)
+            and method != "get"
+        ):
+            return await check_resource(
+                url,
+                resource,
+                session,
+                force_analysis=force_analysis,
+                method="get",
+                worker_priority=worker_priority,
+            )
         # if we get a 404, it might be that the resource's URL has changed since last catalog load
         # we compare the actual URL to the one we have here to handle these cases
         if getattr(e, "status", None) == 404 and config.UDATA_URI:
@@ -216,10 +228,15 @@ async def handle_wrong_resource_url(
     worker_priority: str,
 ):
     resource_id = resource["resource_id"]
-    stable_resource_url = f"{config.UDATA_URI.replace('api/2', 'fr')}/datasets/r/{resource_id}"
-    async with session.head(stable_resource_url) as resp:
-        resp.raise_for_status()
-        actual_url = resp.headers.get("location")
+    stable_resource_url = (
+        f"{config.UDATA_URI.replace('api/2', 'pt')}/datasets/r/{resource_id}"
+    )
+    try:
+        async with session.head(stable_resource_url) as resp:
+            resp.raise_for_status()
+            actual_url = resp.headers.get("location")
+    except aiohttp.ClientError:
+        return
     if actual_url and url != actual_url:
         await Resource.update(resource_id, data={"url": actual_url})
         return await check_resource(
