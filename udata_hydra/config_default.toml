@@ -48,6 +48,11 @@ CHECK_DELAYS = [12, 24, 168, 720] # in hours (1/2, 1, 7, 30 days)
 # seconds to wait for between batches
 SLEEP_BETWEEN_BATCHES = 60
 
+# -- CORS probe settings -- #
+CORS_PROBE_ORIGIN = "https://www.data.gouv.fr"
+CORS_PROBE_REQUEST_HEADERS = ["authorization", "content-type"]
+CORS_PROBE_TIMEOUT_SECONDS = 5
+
 # max download filesize in bytes (100 MB)
 MAX_FILESIZE_ALLOWED.csv = 104857600
 MAX_FILESIZE_ALLOWED.csvgz = 104857600
@@ -55,6 +60,7 @@ MAX_FILESIZE_ALLOWED.xls = 52428800    # /2
 MAX_FILESIZE_ALLOWED.xlsx = 13107200   # /8
 MAX_FILESIZE_ALLOWED.ods = 10485760    # /10
 MAX_FILESIZE_ALLOWED.geojson = 104857600
+MAX_FILESIZE_ALLOWED.parquet = 52428800
 
 # -- CSV analysis settings -- #
 SQL_INDEXES_TYPES_SUPPORTED = ["index"]
@@ -65,11 +71,15 @@ TEMPORARY_DOWNLOAD_FOLDER = ""
 
 # -- Worker settings -- #
 RQ_DEFAULT_TIMEOUT = 180
+RQ_DEFAULT_FAILURE_TTL = 864000  # How long failed jobs are kept in redis: 10 days.
 
 # -- Webhook integration config -- #
 WEBHOOK_ENABLED = true
 UDATA_URI = "${UDATA_URI}"
 UDATA_URI_API_KEY = "${UDATA_URI_API_KEY}"
+
+# -- File generation cleanup, only patched in the tests -- #
+REMOVE_GENERATED_FILES = true
 
 # -- Minio / datalake settings -- #
 MINIO_URL = "" # no scheme
@@ -91,3 +101,6 @@ MINIO_PMTILES_FOLDER = "" # no trailing slash
 CSV_TO_GEOJSON = false
 MINIO_GEOJSON_BUCKET = ""
 MINIO_GEOJSON_FOLDER = "" # no trailing slash
+
+# -- Parquet analysis settings -- #
+PARQUET_TO_DB = false
