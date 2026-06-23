@@ -23,10 +23,16 @@ class Configurator:
             configuration: dict = tomllib.load(f)
 
         # override with local settings
-        local_settings = os.environ.get("HYDRA_SETTINGS", Path.cwd() / "config.toml")
-        if Path(local_settings).exists():
-            with open(Path(local_settings), "rb") as f:
+        local_settings = self._local_settings_path()
+        if local_settings:
+            with open(local_settings, "rb") as f:
                 configuration.update(tomllib.load(f))
+            log.info("Loaded local settings from %s", local_settings)
+        else:
+            log.warning(
+                "No local config.toml found (set HYDRA_SETTINGS or place config.toml "
+                "in the working directory); using config_default.toml only."
+            )
 
         self.configuration = configuration
         self.check()
@@ -34,6 +40,26 @@ class Configurator:
         # add project metadata to config
         self.configuration["APP_NAME"] = "udata-hydra"
         self.configuration["APP_VERSION"] = importlib.metadata.version("udata-hydra")
+
+    @staticmethod
+    def _local_settings_path() -> Path | None:
+        """Resolve the local settings file (config.toml) overriding the defaults.
+
+        Lookup order:
+          1. the HYDRA_SETTINGS env var (explicit path, always wins);
+          2. config.toml in the current working directory (where the command runs);
+          3. config.toml next to the project root (so it is found regardless of cwd,
+             e.g. when launched by systemd/gunicorn from another directory).
+
+        Returns the first existing path, or None when no local settings exist.
+        """
+        env_path = os.environ.get("HYDRA_SETTINGS")
+        candidates = (
+            [Path(env_path)]
+            if env_path
+            else [Path.cwd() / "config.toml", Path(__file__).parent.parent / "config.toml"]
+        )
+        return next((path for path in candidates if path.exists()), None)
 
     def override(self, **kwargs) -> None:
         self.configuration.update(kwargs)

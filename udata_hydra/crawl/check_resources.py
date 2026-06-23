@@ -35,24 +35,36 @@ results: defaultdict = defaultdict(int)
 async def check_batch_resources(to_parse: list[Record]) -> None:
     """Check a batch of resources"""
     context.monitor().set_status("Checking resources...")
-    tasks: list = []
+    tasks: list[asyncio.Task] = []
     async with aiohttp.ClientSession(
         timeout=None,
         headers={"user-agent": config.USER_AGENT_FULL},
     ) as session:
         for row in to_parse:
             tasks.append(
-                check_resource(
-                    url=row["url"],
-                    resource=row,
-                    session=session,
-                    worker_priority="default" if row["priority"] else "low",
+                asyncio.ensure_future(
+                    check_resource(
+                        url=row["url"],
+                        resource=row,
+                        session=session,
+                        worker_priority="default" if row["priority"] else "low",
+                    )
                 )
             )
-        for task in asyncio.as_completed(tasks):
-            result = await task
-            results[result] += 1
-            context.monitor().refresh(results)
+        try:
+            for task in asyncio.as_completed(tasks):
+                result = await task
+                results[result] += 1
+                context.monitor().refresh(results)
+        finally:
+            # On shutdown/cancellation, make sure no check task outlives the
+            # ClientSession (and the DB pool closed later in start_checks).
+            # Orphaned tasks would otherwise resume against a closed connector
+            # and pool, raising errors that are never retrieved.
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def check_resource(
