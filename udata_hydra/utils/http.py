@@ -96,7 +96,10 @@ async def send(dataset_id: str, resource_id: str, document: UdataPayload) -> Non
         "X-API-KEY": config.UDATA_URI_API_KEY,
     }
 
-    async with aiohttp.ClientSession() as session:
+    # udata may be served behind an internal self-signed certificate (e.g. UDATA_URI
+    # pointing at an internal IP), so we skip TLS verification for these callbacks.
+    connector = aiohttp.TCPConnector(ssl=False)
+    async with aiohttp.ClientSession(connector=connector) as session:
         async with session.put(uri, json=document.payload, headers=headers) as resp:
             # we're raising since we should be in a worker thread
             if resp.status == 404:
