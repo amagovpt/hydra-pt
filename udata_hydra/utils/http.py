@@ -1,5 +1,6 @@
 import json
 import logging
+import ssl
 from urllib.parse import urlparse
 
 import aiohttp
@@ -60,6 +61,21 @@ class UdataPayload:
         self.payload = payload
 
 
+def udata_ssl_param() -> bool | ssl.SSLContext:
+    """Map ``config.UDATA_SSL_VERIFY`` to aiohttp's ``TCPConnector(ssl=...)`` param.
+
+    - a path string -> an SSLContext verifying against that CA/certificate file
+    - True / unset   -> verify against the system CA bundle (default)
+    - False          -> skip TLS verification
+    """
+    verify = config.UDATA_SSL_VERIFY
+    if isinstance(verify, str):
+        return ssl.create_default_context(cafile=verify)
+    if verify is None:
+        return True
+    return bool(verify)
+
+
 def is_valid_uri(uri: str) -> bool:
     try:
         result = urlparse(uri)
@@ -96,9 +112,10 @@ async def send(dataset_id: str, resource_id: str, document: UdataPayload) -> Non
         "X-API-KEY": config.UDATA_URI_API_KEY,
     }
 
-    # udata may be served behind an internal self-signed certificate (e.g. UDATA_URI
-    # pointing at an internal IP), so we skip TLS verification for these callbacks.
-    connector = aiohttp.TCPConnector(ssl=False)
+    # TLS verification for these callbacks is driven by config.UDATA_SSL_VERIFY
+    # (defaults to verifying; set it to false in config.toml when udata is served
+    # behind an internal self-signed certificate).
+    connector = aiohttp.TCPConnector(ssl=udata_ssl_param())
     async with aiohttp.ClientSession(connector=connector) as session:
         async with session.put(uri, json=document.payload, headers=headers) as resp:
             # we're raising since we should be in a worker thread

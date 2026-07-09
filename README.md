@@ -562,6 +562,11 @@ Create a `config.toml` where your service and commands are launched, or specify 
 UDATA_URI = "https://dev.local:7000/api/2"
 UDATA_URI_API_KEY = "example.api.key"
 SENTRY_DSN = "https://{my-sentry-dsn}"
+# TLS verification for the udata callbacks:
+#   true           -> verify against the system CA bundle (default)
+#   false          -> skip TLS verification (udata behind an internal self-signed cert)
+#   "/path/ca.pem" -> verify against this CA/certificate file
+UDATA_SSL_VERIFY = true
 ```
 
 The webhook integration sends HTTP messages to `udata` when resources are analysed or checked to fill resources extras.
