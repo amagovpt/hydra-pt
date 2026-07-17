@@ -3,67 +3,79 @@
 Vista de **implantação** (deployment) do C4 Model das ligações entre os serviços
 **hydra-pt**, **api-tabular-pt**, **dadosgov-metrics** e **dadosgov (udata)**.
 
-> Nota C4: a *Deployment view* é a vista suplementar que mapeia os containers em
-> nós de infraestrutura. (No C4 clássico o "Nível 4" é o de *Código*; o que se
-> pretende aqui é o diagrama de implantação com as ligações entre serviços.)
+> Nota C4: a *Deployment view* é a vista suplementar que mapeia os containers em nós de
+> infraestrutura. Para melhor legibilidade das ligações, o diagrama é desenhado como um
+> *flowchart* em camadas (subgráficos = sistemas/nós, cilindros = bases de dados). (No C4
+> clássico o "Nível 4" é o de *Código*; o que se pretende aqui é o diagrama de implantação.)
+
+![Diagrama de implantação — dados.gov.pt](deployment-c4.png)
+
+<details>
+<summary>Fonte do diagrama (Mermaid)</summary>
 
 ```mermaid
-C4Deployment
-    title Implantacao — hydra-pt / api-tabular-pt / dadosgov-metrics / dadosgov (udata)
+flowchart LR
+  EXT["Recursos externos<br/>URLs dos recursos (HTTP/HTTPS)"]
 
-    Deployment_Node(dockerHost, "Servidor de Aplicacoes", "Docker host (Linux) — os 3 stacks ligam-se via host.docker.internal") {
+  subgraph DGOV["dadosgov (udata) — dados.gov.pt"]
+    direction TB
+    UAPI["udata API<br/>/api/1 · /api/2<br/>172.31.204.12 / 10.55.37.38"]
+    MONGO[("MongoDB :27017<br/>10.55.37.40/.143")]
+    MATOMO["Matomo<br/>dados.gov.pt/stats"]
+  end
 
-        Deployment_Node(hydraStack, "hydra-pt", "docker compose — rede hydra_net") {
-            Container(hydra, "hydra", "Python / supervisord", "app :8000, crawler, worker (RQ) e agendador do catalogo num so container")
-            ContainerDb(hydraDb, "database", "PostgreSQL 15 (:5432)", "Catalogo, checks e metadados")
-            ContainerDb(hydraCsv, "database-csv", "PostgreSQL 15 (:5434)", "Tabelas CSV (schema public) + metricas (schema metric)")
-        }
+  subgraph METRICS["dadosgov-metrics (Airflow)"]
+    direction TB
+    AIR["airflow :8008<br/>DAG dgv_metrics"]
+    ADB[("airflow-db<br/>PostgreSQL 12 :15432")]
+  end
 
-        Deployment_Node(tabStack, "api-tabular-pt", "docker compose") {
-            Container(pgrest, "postgrest", "PostgREST v14 (:8080)", "Expoe os schemas public + metric")
-            Container(tabApi, "tabular-api", "Python aiohttp (:8005)", "API de dados tabulares (schema public)")
-            Container(metApi, "metrics-api", "Python aiohttp (:8006)", "API de metricas (schema metric)")
-        }
+  subgraph HYDRA["hydra-pt (docker · rede hydra_net)"]
+    direction TB
+    HAPP["hydra<br/>app :8000 · crawler<br/>worker · catálogo"]
+    HDB[("database<br/>PostgreSQL 15 :5432")]
+    HCSV[("database-csv<br/>PostgreSQL 15 :5434<br/>public + metric")]
+  end
 
-        Deployment_Node(metStack, "dadosgov-metrics", "docker compose — Airflow") {
-            Container(airflow, "airflow", "Airflow LocalExecutor (:8008)", "DAG dgv_metrics (schedule 15 6 * * *)")
-            ContainerDb(airflowDb, "airflow-db", "PostgreSQL 12 (:15432)", "Metadados do Airflow")
-        }
-    }
+  REDIS[("Redis :6379<br/>10.55.37.142")]
 
-    Deployment_Node(redisHost, "Servidor Redis", "10.55.37.142") {
-        ContainerDb(redis, "redis", "Redis (:6379)", "Fila de jobs (RQ)")
-    }
+  subgraph TAB["api-tabular-pt (docker)"]
+    direction TB
+    PG["postgrest :8080<br/>public + metric"]
+    TAPI["tabular-api :8005"]
+    MAPI["metrics-api :8006"]
+  end
 
-    Deployment_Node(udataHost, "dadosgov (udata)", "Portal dados.gov.pt — hosts internos 10.55.37.x / 172.31.204.12") {
-        Container(udataApi, "udata API", "HTTP /api/1 e /api/2", "172.31.204.12 / 10.55.37.38 / dados.gov.pt")
-        ContainerDb(mongo, "MongoDB", "MongoDB (:27017)", "Catalogo udata — 10.55.37.40 / .143")
-        Container(matomo, "Matomo", "HTTPS dados.gov.pt/stats", "Analytics de visitas")
-    }
+  HAPP -->|"lê catálogo / envia checks"| UAPI
+  UAPI -->|"POST /api/resources"| HAPP
+  HAPP -->|"HEAD/GET recursos"| EXT
+  HAPP <-->|"jobs RQ"| REDIS
+  HAPP -->|"SQL catálogo/checks"| HDB
+  HAPP -->|"grava CSV (public)"| HCSV
 
-    Deployment_Node(webHost, "Recursos externos", "Internet") {
-        Container(resources, "URLs dos recursos", "HTTP/HTTPS", "dados.gov.pt e dominios de terceiros")
-    }
+  AIR -->|"lê visitas"| MATOMO
+  AIR -->|"slugs / catálogo"| MONGO
+  AIR -->|"lê / atualiza"| UAPI
+  AIR -->|"grava métricas (metric)"| HCSV
+  AIR -->|"metadados"| ADB
 
-    Rel(hydra, udataApi, "Le catalogo (/api/1) e envia checks/analise (/api/2)", "HTTPS")
-    Rel(udataApi, hydra, "Eventos de recurso", "HTTP POST /api/resources")
-    Rel(hydra, resources, "HEAD/GET aos URLs dos recursos", "HTTP/HTTPS")
-    Rel(hydra, redis, "Enfileira/consome jobs", "Redis :6379")
-    Rel(hydra, hydraDb, "Catalogo e checks", "SQL (hydra_net)")
-    Rel(hydra, hydraCsv, "Grava tabelas CSV (schema public)", "SQL (hydra_net)")
+  PG -->|"lê public + metric"| HCSV
+  TAPI --> PG
+  MAPI --> PG
+  UAPI -->|"preview tabular :8005"| TAPI
+  UAPI -->|"métricas :8006"| MAPI
 
-    Rel(pgrest, hydraCsv, "Le dados (public + metric)", "SQL host.docker.internal:5434")
-    Rel(tabApi, pgrest, "Consulta", "HTTP :8080")
-    Rel(metApi, pgrest, "Consulta (Accept-Profile: metric)", "HTTP :8080")
-    Rel(udataApi, tabApi, "Pre-visualizacao de dados tabulares", "HTTP :8005")
-    Rel(udataApi, metApi, "Metricas", "HTTP :8006")
-
-    Rel(airflow, matomo, "Le visitas", "HTTPS")
-    Rel(airflow, mongo, "Le catalogo/slugs", "Mongo :27017")
-    Rel(airflow, udataApi, "Le/atualiza catalogo", "HTTP")
-    Rel(airflow, hydraCsv, "Grava metricas (schema metric)", "SQL host.docker.internal:5434")
-    Rel(airflow, airflowDb, "Metadados do Airflow", "SQL")
+  classDef db fill:#e8eef7,stroke:#2f5496,stroke-width:1px,color:#111;
+  classDef app fill:#eaf3ea,stroke:#548235,stroke-width:1px,color:#111;
+  classDef ext fill:#faf3e0,stroke:#bf8f00,stroke-width:1px,color:#111;
+  class HDB,HCSV,ADB,MONGO,REDIS db;
+  class HAPP,AIR,PG,TAPI,MAPI,UAPI app;
+  class EXT,MATOMO ext;
 ```
+
+</details>
+
+> A imagem `deployment-c4.png` é gerada a partir da fonte Mermaid acima (mermaid-cli, escala 3×).
 
 ## Legenda das ligações
 
@@ -111,4 +123,11 @@ hydra worker  ──(escreve schema public)──▶  database-csv  ◀──(es
 
 - Os 3 stacks Docker (**hydra-pt**, **api-tabular-pt**, **dadosgov-metrics**) correm no **mesmo host**; api-tabular e metrics chegam à BD do hydra por `host.docker.internal:5434` (porta publicada), enquanto o próprio hydra usa a rede interna `hydra_net` (`database-csv:5432`).
 - O código dos DAGs do `dadosgov-metrics` provém do repositório `datagouvfr_data_pipelines` (montado no container Airflow) — é dependência de código, não um serviço em runtime, por isso não aparece no diagrama.
-- Os IPs internos diferem entre ambientes (local/distribuído); ver a tabela acima e o `setup.py` (topologia).
+- Os IPs internos diferem entre ambientes (local/distribuído); ver a tabela de endpoints e o `setup.py` (topologia).
+
+## Regenerar a imagem
+
+```bash
+# a partir da fonte Mermaid (bloco acima, guardado como diagram.mmd):
+npx @mermaid-js/mermaid-cli -i diagram.mmd -o deployment-c4.png -s 3 -b white
+```
