@@ -1,0 +1,22 @@
+# Reduz o contexto de build e evita cozer segredos/artefactos na imagem.
+.git
+.github
+.circleci
+.venv
+**/__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+tests
+docs
+.benchmarks
+banner.png
+*.egg-info
+
+# Segredos: o config.toml é montado em runtime, nunca copiado para a imagem.
+config.toml
+/tmp/hydra.config.toml
+
+# Pasta de logs em runtime (bind-mount), fora do build
+logs/

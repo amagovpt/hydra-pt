@@ -138,3 +138,7 @@ tests/data/.*
 
 # vscode/codium
 .vscode/
+
+# Logs persistidos do container (manter a pasta, ignorar o conteúdo)
+logs/*
+!logs/.gitkeep

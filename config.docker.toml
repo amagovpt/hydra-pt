@@ -1,0 +1,10 @@
+# Overrides usados APENAS dentro dos containers docker.
+# São aplicados por cima do config.toml (segredos + settings PT) pelo
+# docker/entrypoint.sh. Apontam o hydra para os serviços PostgreSQL definidos
+# no docker-compose.yml (acessiveis pelo nome do serviço na rede do compose).
+#
+# O udata-hydra lê a configuração apenas de ficheiros TOML (ver udata_hydra/__init__.py),
+# não de variáveis de ambiente — por isso os hostnames têm de vir daqui.
+# Sem segredos neste ficheiro: pode ser versionado no git.
+DATABASE_URL = "postgres://postgres:postgres@database:5432/postgres"
+DATABASE_URL_CSV = "postgres://postgres:postgres@database-csv:5432/postgres"

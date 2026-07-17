@@ -1,3 +1,18 @@
+# Base comum aos serviços hydra (app, crawler, worker, init e agendador do catálogo).
+# Todos partilham a mesma imagem e montam o config.toml do host em read-only.
+x-hydra-base: &hydra-base
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: hydra-pt:local
+  networks:
+    - hydra_net
+  volumes:
+    # Segredos + settings PT vêm do host; combinados com config.docker.toml pelo entrypoint.
+    - ./config.toml:/app/config.toml:ro
+    # Logs persistidos por serviço (app.log, crawler.log, worker.log, catalog.log).
+    - ./logs:/app/logs
+
 services:
   database:
     image: "postgres:15"
@@ -9,6 +24,13 @@ services:
       - database-data-15:/var/lib/postgresql/data/ # persist data even if container shuts down
     ports:
       - 5432:5432
+    networks:
+      - hydra_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   database-csv:
     image: "postgres:15"
@@ -20,6 +42,13 @@ services:
       - database-data-csv-15:/var/lib/postgresql/data/ # persist data even if container shuts down
     ports:
       - 5434:5432
+    networks:
+      - hydra_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   test-database:
     image: "postgres:15"
@@ -29,6 +58,8 @@ services:
       - POSTGRES_DB=postgres
     ports:
       - 5433:5432
+    networks:
+      - hydra_net
     profiles:
       - test
 
@@ -36,9 +67,46 @@ services:
     image: redis
     ports:
       - 6379:6379
+    networks:
+      - hydra_net
     profiles:
       - broker
+
+  # Tudo-num-container: migra o esquema uma vez (docker/run-all.sh) e depois o
+  # supervisord gere os 4 processos de longa duração:
+  #   app (udata-hydra-app) | crawler (udata-hydra-crawl) |
+  #   worker (rq worker)    | catálogo (load-catalog diário às CATALOG_CRON_HOUR)
+  # Gestão por serviço: docker exec -it hydra-pt-hydra-1 supervisorctl status
+  hydra:
+    <<: *hydra-base
+    command: ["/app/docker/run-all.sh"]
+    restart: unless-stopped
+    ports:
+      - 8000:8080 # host:container -> http://localhost:8000
+    environment:
+      - TZ=Europe/Lisbon
+      - CATALOG_CRON_HOUR=3
+      - CATALOG_LOAD_ON_START=false
+    depends_on:
+      database:
+        condition: service_healthy
+      database-csv:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/status/crawler', timeout=5)\""
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
 volumes:
   database-data-15: # named volumes can be managed more easily using docker-compose
   database-data-csv-15: # named volumes can be managed more easily using docker-compose
+
+networks:
+  # Rede partilhada por todos os serviços. name: fixa o nome sem prefixo de projeto,
+  # reutilizando a rede 'hydra_net' já existente (onde as BDs em execução estão ligadas).
+  hydra_net:
+    name: hydra_net
