@@ -86,7 +86,7 @@ services:
     environment:
       - TZ=Europe/Lisbon
       - CATALOG_CRON_HOUR=3
-      - CATALOG_LOAD_ON_START=false
+      - CATALOG_LOAD_ON_START=true
     depends_on:
       database:
         condition: service_healthy
