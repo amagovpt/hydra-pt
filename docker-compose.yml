@@ -1,3 +1,11 @@
+# Limite de tamanho dos logs de stdout/stderr dos containers (driver json-file).
+# Evita que /var/lib/docker/containers/*/*-json.log cresça sem limite.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 # Base comum aos serviços hydra (app, crawler, worker, init e agendador do catálogo).
 # Todos partilham a mesma imagem e montam o config.toml do host em read-only.
 x-hydra-base: &hydra-base
@@ -5,6 +13,7 @@ x-hydra-base: &hydra-base
     context: .
     dockerfile: Dockerfile
   image: hydra-pt:local
+  logging: *default-logging
   networks:
     - hydra_net
   volumes:
@@ -16,6 +25,7 @@ x-hydra-base: &hydra-base
 services:
   database:
     image: "postgres:15"
+    logging: *default-logging
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -34,6 +44,7 @@ services:
 
   database-csv:
     image: "postgres:15"
+    logging: *default-logging
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -52,6 +63,7 @@ services:
 
   test-database:
     image: "postgres:15"
+    logging: *default-logging
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -65,6 +77,7 @@ services:
 
   broker:
     image: redis
+    logging: *default-logging
     ports:
       - 6379:6379
     networks:
