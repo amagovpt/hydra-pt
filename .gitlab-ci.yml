@@ -1,0 +1,132 @@
+# ==========================================================================
+#  hydra-pt — GitLab CI/CD configuration for Python component
+#  (DevOps-Templates/ci-cd-devops-catalog/templates/devops-python-comp.yml)
+# ==========================================================================
+
+include:
+  - component: $CI_SERVER_HOST/DevOps-Templates/ci-cd-devops-catalog/devops-python-comp@~latest
+    inputs:
+      gitlab-runner: "k8s"
+      app-folder: "."
+      coverage-folder: "coverage-reports"
+      python-image: "$NEXUS_REGISTRY_PULL_URL/python:3.11-slim-bookworm"
+      image-name: "$CI_PROJECT_NAME"
+      image-dockerfile: ".gitlab/docker/Dockerfile"
+      sonar-enabled: "false"
+      sonar-project-key: ""
+      sonar-project-name: ""
+      secretdetection-enabled: "true"
+      release-token: "$RELEASE_TOKEN"
+
+variables:
+  UV_CACHE_DIR: .uv-cache
+  UV_LINK_MODE: copy
+
+.uv-setup: &uv-setup
+  - pip install --quiet "uv>=0.8,<1"
+  - export SETUPTOOLS_SCM_PRETEND_VERSION="$(tr -d '[:space:]' < VERSION)"
+
+.uv-cache: &uv-cache
+  key:
+    files:
+      - pyproject.toml
+      - uv.lock
+  paths:
+    - .uv-cache
+
+package-python:
+  cache:
+    <<: *uv-cache
+    policy: pull-push
+  script:
+    - tr -d '[:space:]' < VERSION > ./version.txt
+    - echo "Version $(cat version.txt)"
+    - apt-get update -qq && apt-get install -y --no-install-recommends libmagic1
+    - *uv-setup
+    - mkdir -p /app image-build
+    - cp -r pyproject.toml uv.lock README.md VERSION udata_hydra /app/
+    - uv sync --project /app --frozen --no-dev
+    - uv pip install --python /app/.venv/bin/python supervisor
+    - /app/.venv/bin/python -c "import udata_hydra, supervisor, magic"
+    - tar -C /app -cf image-build/venv.tar .venv
+    - |
+      dpkg -L libmagic1 libmagic-mgc | grep -vE '^/usr/share/(doc|man|bug)' \
+        | while read -r f; do if [ -f "$f" ] || [ -L "$f" ]; then echo "${f#/}"; fi; done \
+        > image-build/libmagic.list
+      tar -C / -cf image-build/libmagic.tar -T image-build/libmagic.list
+      cat image-build/libmagic.list
+    - ls -lh image-build/
+  artifacts:
+    paths:
+      - version.txt
+      - image-build/venv.tar
+      - image-build/libmagic.tar
+    expire_in: 1 day
+
+
+test-python:
+  needs:
+    - job: package-python
+      artifacts: false
+  services:
+    - name: $NEXUS_REGISTRY_PULL_URL/postgres:15
+      alias: postgres
+      variables:
+        POSTGRES_DB: postgres
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: postgres
+  variables:
+    DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/postgres"
+    SENTRY_DSN: ""
+  cache:
+    <<: *uv-cache
+    policy: pull
+  before_script:
+    - apt-get update -qq && apt-get install -y --no-install-recommends
+        git build-essential ca-certificates libmagic1 postgresql-client
+    - *uv-setup
+    - uv sync --frozen
+    - |
+      for i in $(seq 1 30); do
+        pg_isready -h postgres -p 5432 -U postgres && break
+        echo "A aguardar pelo PostgreSQL... ($i/30)"
+        sleep 2
+      done
+      pg_isready -h postgres -p 5432 -U postgres || { echo "ERRO: PostgreSQL indisponível"; exit 1; }
+  script:
+    - mkdir -p coverage-reports
+    - uv run pytest tests/
+        -p no:sugar
+        --junitxml=report.xml
+        --cov-report=xml:coverage-reports/coverage.xml
+
+cobertura2gitlab:
+  rules:
+    - when: never
+
+
+lint-python:
+  cache:
+    <<: *uv-cache
+    policy: pull
+  script:
+    - *uv-setup
+    - uv sync --frozen --only-dev
+    - uv run --no-sync ruff check .
+    - uv run --no-sync ruff format --check .
+
+promote-to-dev-environment:
+  rules:
+    - when: never
+
+promote-to-tst-environment:
+  rules:
+    - when: never
+
+promote-to-ppr-environment:
+  rules:
+    - when: never
+
+promote-to-prd-environment:
+  rules:
+    - when: never

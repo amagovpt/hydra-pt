@@ -54,6 +54,9 @@ container tem `healthcheck` HTTP próprio.
 | Ficheiro | Papel |
 |---|---|
 | `Dockerfile` | Imagem única (`python:3.11-slim` + `uv sync` + `supervisor`, com `libmagic1`). Versão fixada via `SETUPTOOLS_SCM_PRETEND_VERSION` (não há `.git` no build). |
+| `.gitlab/docker/Dockerfile` | Mesma imagem, usada pelo GitLab CI (contexto de build: raiz). **Só copia**: o venv (`image-build/venv.tar`) e o libmagic1 (`image-build/libmagic.tar`) são preparados pelo job `package-python`. Imagem base via `--build-arg NEXUS_REGISTRY_PULL_URL` (default `docker.io/library`). |
+| `VERSION` | Versão da aplicação (convenção do catálogo DevOps): tag `<VERSION>-dev` das imagens de `develop` e versão do pacote no build do CI. |
+| `.gitlab-ci.yml` | Pipeline GitLab baseado no componente `devops-python-comp` do catálogo (ver secção 8). |
 | `.dockerignore` | Reduz o contexto de build e garante que `config.toml` (segredos) e `logs/` **não** entram na imagem. |
 | `docker-compose.yml` | Serviços `database`, `database-csv`, `hydra` (+ `test-database`/`broker` por *profile*). Rede `hydra_net`, healthchecks e ordenação de arranque. |
 | `config.docker.toml` | Overrides **só do container**: `DATABASE_URL`/`DATABASE_URL_CSV` a apontar para os serviços do compose. Sem segredos (versionável). |
@@ -220,3 +223,49 @@ O job `send` do worker pode devolver **404** ao comunicar com a instância udata
 dados/endpoint da instância udata — **não** é causado por esta configuração Docker;
 ocorreria igual num deployment com processos separados. O worker recupera e continua.
 ```
+
+---
+
+## 8. CI/CD (GitLab)
+
+O `.gitlab-ci.yml` inclui o componente **`devops-python-comp`** do catálogo
+`DevOps-Templates/ci-cd-devops-catalog` (`@~latest`). O fluxo de stages e branches é
+o do catálogo:
+
+| Ref | Jobs |
+|---|---|
+| Merge Request, `feature/*`, `hotfix/*` | `secret_detection`, `package-python`, `test-python`, `lint-python` |
+| `develop` | os anteriores + `build-image-dev` (`<VERSION>-dev` no Nexus) + `container_scanning` |
+| `release-x.y.z` | `build-image-tst` / `build-image-ppr` (manuais, tag `x.y.z-tst` / `x.y.z-ppr`) |
+| tag `x.y.z` | `build-image-prd` (manual) + `release-notes` + `create-release` |
+
+O template assume `pip` + `requirements.txt`; como o hydra usa `uv`, o projeto
+redefine apenas:
+
+- `package-python`: gera `version.txt` a partir de `VERSION` e prepara o conteúdo da imagem,
+  porque o `.gitlab/docker/Dockerfile` não tem instalações (só `COPY`/`ADD`). Na mesma imagem
+  base do runtime, constrói o venv de produção em `/app/.venv` (`uv sync --frozen --no-dev` +
+  `supervisor`) e empacota o `libmagic1`. Os artefactos `image-build/venv.tar` e
+  `image-build/libmagic.tar` seguem para os jobs `build-image-*`;
+- `test-python`: PostgreSQL 15 como *service*, `libmagic1`, `uv run pytest` (JUnit em
+  `report.xml`, cobertura Cobertura em `coverage-reports/coverage.xml`; o mínimo de 85 %
+  vem do `pyproject.toml`);
+- `lint-python`: `ruff check` + `ruff format --check` com a versão do `uv.lock`;
+- `cobertura2gitlab`: desativado (o `coverage.py` já gera Cobertura);
+- `promote-to-*`: desativados até existir repositório de manifestos.
+
+### Pendentes
+
+- **SonarQube**: preencher `sonar-project-key` / `sonar-project-name` nos inputs.
+  `sonar-enabled` tem de ficar `"true"`, porque no template o `test-python` depende dele.
+- **Deploy**: criar o repositório de manifestos, preencher `deploy-repository`,
+  `deploy-manifest` e `deploy-token`, e remover os overrides `promote-to-*`.
+- **Release notes**: variável `RELEASE_TOKEN` no projeto/grupo e
+  `.gitlab/changelog_config.yml` na branch principal.
+- No template, os testes estão ligados a `develop`, `master`, `feature/*` e `hotfix/*`.
+  Se a branch por defeito no GitLab for `main`, a pipeline corre, mas sem testes.
+- As imagens `python:3.11-slim-bookworm` e `postgres:15` são puxadas do mirror Nexus
+  (`$NEXUS_REGISTRY_PULL_URL`). O input `python-image` e o `FROM` do
+  `.gitlab/docker/Dockerfile` têm de usar a mesma imagem, porque o venv depende do interpretador.
+- Os artefactos do `package-python` têm cerca de 175 MB. Se exceder o "Maximum artifacts
+  size" da instância (por defeito 100 MB), é preciso pedir à equipa DevOps para o subir neste projeto.

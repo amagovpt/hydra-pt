@@ -86,6 +86,11 @@ parameter-already-assigned = "ignore"
 lint = { extend-select = ["I"] } # ["I"] is to also sort imports with an isort rule
 line-length = 100
 
+# Só o pacote udata_hydra: sem isto o flat-layout recusa o build por causa das
+# pastas docker/ e logs/ na raiz.
+[tool.setuptools.packages.find]
+include = ["udata_hydra*"]
+
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
 local_scheme = "no-local-version"

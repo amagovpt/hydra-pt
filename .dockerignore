@@ -20,3 +20,15 @@ config.toml
 
 # Pasta de logs em runtime (bind-mount), fora do build
 logs/
+
+# Artefactos do GitLab CI (caches, relatórios, certificados e digests dos jobs)
+.gitlab-ci.yml
+.uv-cache
+.pip-cache
+.sonar
+coverage-reports
+reports
+report.xml
+version.txt
+lcamaca.crt
+imagem.digest
